@@ -1,26 +1,27 @@
 <script lang="ts">
   import { onDestroy, onMount } from 'svelte'
+  import { fade, fly } from 'svelte/transition'
   import { handleKey } from './KeyHandler'
   import type { Direction } from './KeyHandler'
-  import SnakeCore, { PARAMS } from './SnakeCore'
+  import SnakeCore, { PARAMS, type SnakeConfigType } from './SnakeCore'
+  import SnakeConfig from './SnakeConfigs.svelte'
 
   let cv: HTMLCanvasElement
-  let width = 200
-  let height = 200
-  
   let snake: SnakeCore
-  let halted = true
-  let score = 0
 
-  let xDir: Direction = 1
-  let yDir: Direction = 0
-  let nextXDir: Direction = 1
-  let nextYDir: Direction = 0
+  let [width, height, halted, score] = [200, 200, true, 0]
+  let [xDir, yDir, nextXDir, nextYDir] = [1, 0, 1, 0] as Direction[]
+  let snakeConfig: SnakeConfigType = {
+    infiniteBoard: false,
+    fast: false,
+    smallBoard: false,
+  }
 
   function setup() {
+    const { smallBoard } = snakeConfig
     const [pw, ph] = [
-      Math.min(window.innerWidth, PARAMS.MAX_WIDTH),
-      Math.min(window.innerHeight, PARAMS.MAX_HEIGHT),
+      Math.min(window.innerWidth, smallBoard ? PARAMS.MAX_W_SMALL : PARAMS.MAX_WIDTH),
+      Math.min(window.innerHeight, smallBoard ? PARAMS.MAX_H_SMALL : PARAMS.MAX_HEIGHT),
     ]
     const cols = Math.floor((pw * .8) / PARAMS.BWM)
     const rows = Math.floor((ph * .8) / PARAMS.BWM)
@@ -29,7 +30,7 @@
     height = Math.floor(rows * PARAMS.BWM + PARAMS.MARGIN)
 
     const ctx = cv.getContext('2d')
-    snake = new SnakeCore(ctx, rows, cols)
+    snake = new SnakeCore(ctx, rows, cols, snakeConfig)
   }
 
   function resetCanvas() {
@@ -58,7 +59,7 @@
         snake.moveAndDraw(xDir, yDir)
         score = snake.score
       }
-    }, 1_000 / PARAMS.MPS)
+    }, 1_000 / (snakeConfig.fast ? PARAMS.MPS_FAST : PARAMS.MPS))
   }
 
   const handleMove = (event) => {
@@ -74,13 +75,8 @@
     nextYDir = next[1]
   }
 
-  onMount(() => {
-    setup()
-  })
-
-  onDestroy(() => {
-    clearInterval(interval)
-  })
+  onMount(() => setup())
+  onDestroy(() => clearInterval(interval))
 </script>
 
 <svelte:window on:keydown={handleMove} />
@@ -97,13 +93,17 @@
   </div>
 
   {#if halted}
-  <div class="info">
-    {#if score}
-    <p>You lost</p>
-    <p>Press arrow keys to restart</p>
-    {:else} 
-    <p>Press arrow keys to start</p>
-    {/if}
+  <div class="info" transition:fade={{ duration: 150 }}>
+    <div class="modal" transition:fly={{ y: 200, duration: 250 }}>
+      {#if score}
+      <p>You lost!</p>
+      <span>Press <kbd>arrow keys</kbd> to restart</span>
+      {:else} 
+      <p>Press <kbd>arrow keys</kbd> to start</p>
+      {/if}
+
+      <SnakeConfig value={snakeConfig} />
+    </div>
   </div>
   {/if}
 </main>
@@ -140,5 +140,31 @@
     background-image: 
       linear-gradient(to right, #656565 1px, transparent 1px),
       linear-gradient(to bottom, #656565 1px, transparent 1px);
+  }
+
+  .info {
+    position: fixed;
+    inset: 0;
+    background-color: #0000008d;
+    font-size: 1.25rem;
+
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+
+  .info .modal {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+
+    padding: 1rem 3rem 2rem 3rem;
+    margin-bottom: 20vh;
+    background-color: whitesmoke;
+  }
+
+  kbd {
+    font-weight: 550;
+    font-family: inherit;
   }
 </style>

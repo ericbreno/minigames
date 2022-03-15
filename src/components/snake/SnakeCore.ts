@@ -1,6 +1,10 @@
+import { LinkedList } from '../LinkedList'
+
 export const PARAMS = {
   MAX_WIDTH: 700,
   MAX_HEIGHT: 800,
+  MAX_W_SMALL: 400,
+  MAX_H_SMALL: 500,
   BLOCK_SIZE: 20,
   MARGIN: 2,
   BWM: 22, // block with margin
@@ -9,25 +13,32 @@ export const PARAMS = {
   SNAKE_COLOR: '#00ff00',
   FOOD_COLOR: '#970e0e',
   MPS: 7, // moves per second
+  MPS_FAST: 11,
 }
 
 type SnakeBlock = [number, number]
+export type SnakeConfigType = {
+  infiniteBoard: boolean
+  fast: boolean
+  smallBoard: boolean
+}
 
 export default class SnakeCore {
-  private blocks: SnakeBlock[] = []
+  private snakeBlocks: LinkedList<SnakeBlock> = new LinkedList()
 
   private food: SnakeBlock = [-1, -1]
   private grid: boolean[][] = []
   private max = 0
 
   get score() {
-    return this.blocks.length - 2
+    return this.snakeBlocks.length - 2
   }
 
   constructor (
     private ctx: CanvasRenderingContext2D,
     private rows: number,
-    private cols: number
+    private cols: number,
+    private config: SnakeConfigType
   ) {
     this.grid = Array(rows).fill(0).map(() => Array(cols).fill(false))
     this.max = rows * cols
@@ -35,7 +46,8 @@ export default class SnakeCore {
     const middleX = Math.floor(cols / 2)
     const middleY = Math.floor(rows / 2)
 
-    this.blocks.push([middleX, middleY], [middleX - 1, middleY])
+    this.snakeBlocks.push([middleX, middleY])
+    this.snakeBlocks.push([middleX - 1, middleY])
   }
 
   moveAndDraw(
@@ -51,29 +63,46 @@ export default class SnakeCore {
     xDir: number,
     yDir: number
   ) {
-    const head = this.blocks[this.blocks.length - 1]
-    const [x, y] = head
-    const [nextX, nextY] = [x + xDir, y + yDir]
+    const [nextX, nextY] = this.calcNextCoords(xDir, yDir)
     
     const newHead = [nextX, nextY] as SnakeBlock
-    this.blocks.push(newHead)
+    this.snakeBlocks.push(newHead)
     this.grid[nextY][nextX] = true
     
     this.ctx.fillStyle = PARAMS.SNAKE_COLOR
     this.drawBlock(newHead)
   }
 
+  private calcNextCoords(
+    xDir: number,
+    yDir: number
+  ) {
+    const head = this.snakeBlocks.peek()
+    const [x, y] = head
+
+    if (this.config.infiniteBoard) {
+      const [nextX, nextY] = [x + xDir, y + yDir]
+      return [
+        nextX < 0 ? this.cols - 1 : nextX >= this.cols ? 0 : nextX,
+        nextY < 0 ? this.rows - 1 : nextY >= this.rows ? 0 : nextY
+      ]
+    } 
+    
+    const [nextX, nextY] = [x + xDir, y + yDir]
+    return [nextX, nextY]
+  }
+
   private removeTail() {
     if (this.ateFood()) return
 
-    const tail = this.blocks.shift()
+    const tail = this.snakeBlocks.shift()
     this.grid[tail[1]][tail[0]] = false
     this.ctx.fillStyle = PARAMS.BG
     this.drawBlock(tail)
   }
 
   private ateFood() {
-    const head = this.blocks[this.blocks.length - 1]
+    const head = this.snakeBlocks.peek()
     const [x, y] = head
 
     if (this.food[0] === x && this.food[1] === y) {
@@ -97,7 +126,7 @@ export default class SnakeCore {
   }
 
   private getRandomCoords() {
-    const remainingBlocks = this.max - this.blocks.length
+    const remainingBlocks = this.max - this.snakeBlocks.length
     const threshold = 10
     if (remainingBlocks < threshold) {
       for (let i = 0; i < this.grid.length; i++) {
@@ -132,13 +161,12 @@ export default class SnakeCore {
   }
 
   willCollide(xDir: number, yDir: number) {
-    const head = this.blocks[this.blocks.length - 1]
-    const [x, y] = head
-    const [nextX, nextY] = [x + xDir, y + yDir]
+    const [nextX, nextY] = this.calcNextCoords(xDir, yDir)
 
-    const hitWall = 
+    const _hitWall = 
       nextX < 0 || nextX >= this.cols ||
       nextY < 0 || nextY >= this.rows
+    const hitWall = this.config.infiniteBoard ? false : _hitWall
 
     const hitBlock = !hitWall && this.grid[nextY][nextX]
     const notFood = hitBlock && this.food[0] !== nextX && this.food[1] !== nextY
