@@ -16,9 +16,9 @@ const config = {
 		prerender: {
 			default: true,
 		},
-		// paths: {
-		// 	base: '/games'
-		// },
+		paths: {
+			base: '/games'
+		},
 	},
 };
 
